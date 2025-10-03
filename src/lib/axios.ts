@@ -2,7 +2,7 @@ import axios from "axios";
 import {jwtDecode, JwtPayload} from "jwt-decode"
 
 export const api = axios.create({
-baseURL: "https://infofretamento.onrender.com",
+baseURL: "https://evolution-fretamento.wtw36t.easypanel.host",
   withCredentials: true,
 });
 
