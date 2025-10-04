@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Dialog,
   DialogContent,
@@ -26,15 +27,15 @@ import loading from "../../assets/loading.svg";
 import axios from "axios";
 import { useRouter } from "next/navigation";
 
-interface MotoristasProps {
-  setMotoristas: React.Dispatch<React.SetStateAction<Motorista[]>>;
-  motoristas: Motorista[];
-}
+// Função para criar motorista
+const criarMotorista = async (
+  motorista: Omit<Motorista, "id">
+): Promise<Motorista> => {
+  const response = await api.post("/motorista", motorista);
+  return response.data.data;
+};
 
-export default function DialogAdicionar({
-  setMotoristas,
-  motoristas,
-}: MotoristasProps) {
+export default function DialogAdicionar() {
   const [nome, setNome] = useState<string>("");
   const [dataNascimento, setDataNascimento] = useState<string>("");
   const [telefone, setTelefone] = useState<string>("");
@@ -44,6 +45,8 @@ export default function DialogAdicionar({
   const [ufHabilitacao, setUfHabilitacao] = useState<Uf[]>([]);
   const [cidadeHabilitacao, setCidadeHabilitacao] = useState<Cidade[]>([]);
   const [dataAdmissao, setDataAdmissao] = useState<string>("");
+  const [isOpen, setIsOpen] = useState(false);
+
   const [documento, setDocumento] = useState<Documento>({
     documento: "",
     tipo: "",
@@ -65,8 +68,56 @@ export default function DialogAdicionar({
     uf: "",
   });
 
-  const [adicionando, setAdicionando] = useState(false);
   const router = useRouter();
+  const queryClient = useQueryClient();
+
+  // Mutation para criar motorista
+  const criarMotoristaMutation = useMutation({
+    mutationFn: criarMotorista,
+    onSuccess: () => {
+      // Invalida queries relacionadas para atualizar a lista de motoristas
+      queryClient.invalidateQueries({ queryKey: ["motoristas"] });
+
+      toast.success("Motorista adicionado com sucesso!");
+
+      // Limpa o formulário e fecha o dialog
+      limparFormulario();
+      setIsOpen(false);
+    },
+    onError: (error) => {
+      if (axios.isAxiosError(error)) {
+        if (error.status === 401) {
+          localStorage.removeItem("token");
+          router.replace("/login");
+          return;
+        }
+      }
+      toast.error("Erro ao tentar adicionar motorista.");
+    },
+  });
+
+  const limparFormulario = () => {
+    setNome("");
+    setDataNascimento("");
+    setTelefone("");
+    setCpf("");
+    setDocumento({ documento: "", tipo: "" });
+    setEndereco({
+      uf: "",
+      cidade: "",
+      rua: "",
+      bairro: "",
+      numero: "",
+    });
+    setHabilitacao({
+      protocolo: "",
+      vencimento: "",
+      categoria: "",
+      cidade: "",
+      uf: "",
+    });
+    setDataAdmissao("");
+  };
 
   useEffect(() => {
     axios
@@ -119,56 +170,23 @@ export default function DialogAdicionar({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setAdicionando(true);
-    const motorista = {
-      nome: nome,
-      dataNascimento: dataNascimento,
-      telefone: telefone,
-      documento: documento,
-      endereco: endereco,
-      cpf: cpf,
-      habilitacao: habilitacao,
-      dataAdmissao: dataAdmissao,
-    } as Motorista;
 
-    try {
-      const response = await api.post("/motorista", motorista);
-      setMotoristas([...motoristas, response.data.data]);
-      toast.success("Motorista adicionado.");
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        if (error.status === 401) {
-          localStorage.removeItem("token");
-          router.replace("/login");
-        }
-      }
-      toast.error("Erro ao tentar adicionar motorista.");
-    } finally {
-      setNome("");
-      setDataNascimento("");
-      setTelefone("");
-      setCpf("");
-      setDocumento({ documento: "", tipo: "" });
-      setEndereco({
-        uf: "",
-        cidade: "",
-        rua: "",
-        bairro: "",
-        numero: "",
-      });
-      setHabilitacao({
-        protocolo: "",
-        vencimento: "",
-        categoria: "",
-        cidade: "",
-        uf: "",
-      });
-      setAdicionando(false);
-    }
+    const motorista = {
+      nome,
+      dataNascimento,
+      telefone,
+      documento,
+      endereco,
+      cpf,
+      habilitacao,
+      dataAdmissao,
+    } as Omit<Motorista, "id">;
+
+    criarMotoristaMutation.mutate(motorista);
   };
 
   return (
-    <Dialog>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <span className="bg-green-600 hover:bg-green-500 w-[280px] md:w-[200px] p-1 text-center rounded-md text-white cursor-pointer transition-all">
           Adicionar Motorista
@@ -190,21 +208,27 @@ export default function DialogAdicionar({
               <legend className="font-semibold">Motorista</legend>
               <div>
                 <label htmlFor="nome">Nome</label>
-                <Input id="nome" onChange={(e) => setNome(e.target.value)} />
+                <Input
+                  id="nome"
+                  value={nome}
+                  onChange={(e) => setNome(e.target.value)}
+                />
               </div>
               <div>
                 <label htmlFor="dataNascimento">Data de Nascimento</label>
                 <Input
                   type="date"
                   id="dataNascimento"
+                  value={dataNascimento}
                   onChange={(e) => setDataNascimento(e.target.value)}
                 />
               </div>
               <div>
-                <label htmlFor="dataAdmissao">Data de Admissao</label>
+                <label htmlFor="dataAdmissao">Data de Admissão</label>
                 <Input
                   type="date"
                   id="dataAdmissao"
+                  value={dataAdmissao}
                   onChange={(e) => setDataAdmissao(e.target.value)}
                 />
               </div>
@@ -212,18 +236,24 @@ export default function DialogAdicionar({
                 <label htmlFor="telefone">Telefone</label>
                 <Input
                   id="telefone"
+                  value={telefone}
                   onChange={(e) => setTelefone(e.target.value)}
                 />
               </div>
               <div>
                 <label htmlFor="cpf">CPF</label>
-                <Input id="cpf" onChange={(e) => setCpf(e.target.value)} />
+                <Input
+                  id="cpf"
+                  value={cpf}
+                  onChange={(e) => setCpf(e.target.value)}
+                />
               </div>
 
               <div>
                 <label htmlFor="documento">Documento</label>
                 <Input
                   id="documento"
+                  value={documento.documento}
                   onChange={(e) =>
                     setDocumento({ ...documento, documento: e.target.value })
                   }
@@ -233,7 +263,9 @@ export default function DialogAdicionar({
                 <label htmlFor="tipoDocumento">Tipo de Documento</label>
                 <RadioGroup
                   value={documento.tipo}
-                  onValueChange={(e) => setDocumento({ ...documento, tipo: e })}
+                  onValueChange={(e: string) =>
+                    setDocumento({ ...documento, tipo: e })
+                  }
                   className="flex"
                 >
                   <div className="flex items-center space-x-2">
@@ -253,6 +285,7 @@ export default function DialogAdicionar({
                 <label htmlFor="uf">UF</label>
                 <select
                   id="uf"
+                  value={endereco.uf}
                   onChange={(e) => handleUfChange(e.target.value)}
                   className="w-full border border-gray-300 rounded px-3 py-2"
                 >
@@ -268,6 +301,7 @@ export default function DialogAdicionar({
                 <label htmlFor="cidade">Cidade</label>
                 <select
                   id="cidade"
+                  value={endereco.cidade}
                   onChange={(e) =>
                     setEndereco({ ...endereco, cidade: e.target.value })
                   }
@@ -363,9 +397,10 @@ export default function DialogAdicionar({
                 </select>
               </div>
               <div className="mt-4">
-                <label htmlFor="cidade">Cidade</label>
+                <label htmlFor="cidadeHabilitacao">Cidade</label>
                 <select
-                  id="cidade"
+                  id="cidadeHabilitacao"
+                  value={habilitacao.cidade}
                   onChange={(e) =>
                     setHabilitacao({ ...habilitacao, cidade: e.target.value })
                   }
@@ -382,8 +417,12 @@ export default function DialogAdicionar({
             </fieldset>
           </div>
           <DialogFooter>
-            <Button type="submit" className="w-[300px] mt-8">
-              {adicionando ? (
+            <Button
+              type="submit"
+              className="w-[300px] mt-8"
+              disabled={criarMotoristaMutation.isPending}
+            >
+              {criarMotoristaMutation.isPending ? (
                 <Image
                   src={loading}
                   alt="carregando"

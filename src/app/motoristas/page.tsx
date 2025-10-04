@@ -23,6 +23,7 @@ import  {DialogEditarMotorista}  from "./components/dialog-editar";
 import { DialogExcluirMotorista } from "./components/dialog-excluir";
 import { DialogInformacoesMotorista } from "./components/dialog-informacoes";
 import { Motorista } from "@/lib/types";
+import DialogAdicionar from "./components/dialog-adicionar";
 
 
 export default function Motoristas() {
@@ -86,6 +87,7 @@ export default function Motoristas() {
                   <Search className="text-white" />
                 </Button>
               </form>
+              <DialogAdicionar />
             </div>
 
             {isLoading ? (
